@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="" style="height: 100%;">
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="./element-ui/index.css">
+    <title>在线 python 执行</title>
+</head>
+<body style="height: 100%;margin: 0;">
+<div id="app" style="height: 98%;width: 98%;padding: 5px">
+    <el-input
+            type="textarea"
+            :autosize="{ minRows: 10, maxRows: 100}"
+            placeholder="请输入代码"
+            v-model="code">
+    </el-input>
+    <el-button type="primary" style="margin-top: 5px;margin-bottom: 5px" @click="exec()">运行</el-button>
+    <el-input
+            type="textarea"
+            :autosize="{ minRows: 10, maxRows: 100}"
+            placeholder="运行结果"
+            v-model="result">
+    </el-input>
+</div>
+</body>
+<script src="./axios.min.js"></script>
+<script src="./vue.js"></script>
+<script src="./element-ui/index.js"></script>
+<script>
+
+    new Vue({
+        el: '#app',
+        mounted() {
+        },
+        methods: {
+            exec() {
+                const params = {
+                    code: this.code,
+                    input_queue: this.input_queue
+                }
+                axios.post('http://localhost:8080/exec', params).then(res => {
+                    console.log("exec", res)
+
+                    if (res.data.done) {
+                        // 执行结束了，需要清空队列
+                        this.clearQueue()
+
+                        if (res.data.is_timeout) {
+                            // 执行超时
+                            this.$message("执行超时");
+                        } else {
+                            // 正常执行结束
+                            this.result = res.data.output
+                        }
+                    } else {
+                        // 执行中，需要用户输入
+                        const event = res.data.event
+                        if (event.type === 'input_request') {
+                            // 弹框提示用户输入
+                            this.$prompt(event.prompt, '输入', {
+                                confirmButtonText: '继续执行',
+                                cancelButtonText: '终止执行',
+                                showClose: false,
+                                closeOnClickModal: false,
+                                closeOnPressEscape: false
+                            }).then(({value}) => {
+                                // 继续执行，将本次输入的信息追加进队列，然后再次执行
+                                this.input_queue.push(value)
+                                this.exec()
+                            }).catch((action) => {
+                                // 终止执行，需要清空队列
+                                console.log("action ", action)
+                                this.clearQueue()
+                                this.$message("终止执行")
+                            });
+                        }
+                    }
+                })
+            },
+            clearQueue() {
+                this.input_queue = []
+            }
+        },
+        data() {
+            return {
+                code:
+`name = input("请输入姓名：")
+print("姓名：", name)
+
+if name == "tom":
+    age = input("请输入年龄：")
+    print("年龄：", age)
+
+gender = input("请输入性别：")
+print("性别：", gender)
+`,
+                input_queue: [],
+                result: null,
+            }
+        }
+    })
+
+</script>
+</html>
